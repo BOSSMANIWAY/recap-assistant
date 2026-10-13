@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recap — ассистент встреч</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="apple-touch-icon" href="/static/favicon.svg">
+<style>
+/* ---------- design tokens ---------- */
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --line:#e8eaef; --line-soft:#f0f2f5;
+  --txt:#14181f; --mut:#8a91a0;
+  --acc:#3b6ef5; --acc-dark:#2f5bd6; --acc-soft:#edf2fe; --acc-line:#c9d9fb;
+  --ok:#1f9d61; --ok-soft:#e9f7ef; --ok-line:#bfe6d0;
+  --warn:#b7791f; --warn-soft:#fdf6e7; --warn-line:#f0dcae;
+  --rec:#e53935; --rec-glow:rgba(229,57,53,.18);
+  --r-lg:14px; --r-md:10px; --r-sm:8px; --r-pill:999px;
+  --shadow:0 1px 2px rgba(16,24,40,.05);
+  --shadow-lg:0 12px 40px rgba(16,24,40,.16);
+  --font:-apple-system,BlinkMacSystemFont,system-ui,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--txt);
+  display:flex;flex-direction:column}
+button{font-family:inherit}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;
+  background:var(--card);border-bottom:1px solid var(--line);flex:none}
+.iconbtn-lg{width:36px;height:36px;border:0;border-radius:var(--r-md);background:none;
+  color:var(--mut);font-size:17px;cursor:pointer;display:grid;place-items:center;
+  transition:background .15s,color .15s}
+.iconbtn-lg:hover{background:var(--line-soft);color:var(--txt)}
+.brand{display:flex;align-items:center;gap:9px;margin-right:6px}
+.brand-mark{width:28px;height:28px;border-radius:9px;flex:none;display:grid;
+  place-items:center;background:linear-gradient(135deg,var(--acc),#7c9bff)}
+.brand-mark svg{display:block}
+.brand-name{font-size:16.5px;font-weight:700;letter-spacing:-.2px}
+.divider{width:1px;height:24px;background:var(--line)}
+#recBtn{width:38px;height:38px;border:1.5px solid var(--line);border-radius:var(--r-md);
+  cursor:pointer;position:relative;background:var(--card);flex:none;
+  transition:background .2s,border-color .2s,box-shadow .2s}
+#recBtn::before{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;
+  border-radius:50%;background:#c3c9d4;transition:border-radius .15s,background .2s}
+#recBtn:hover{border-color:#d3d8e0}
+#recBtn.recording{background:var(--rec);border-color:var(--rec);
+  box-shadow:0 0 0 4px var(--rec-glow)}
+#recBtn.recording::before{background:#fff;border-radius:3px}
+#recBtn.stopped{background:var(--acc);border-color:var(--acc);
+  box-shadow:0 0 0 4px rgba(59,110,245,.15)}
+#recBtn.stopped::before{background:#fff;border-radius:50%}
+
+/* ---------- toggle «Авто-ответы» (pill-switch) ---------- */
+.toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;
+  user-select:none;padding:6px 12px 6px 8px;border-radius:var(--r-pill);
+  border:1px solid var(--line);background:var(--bg);
+  transition:border-color .18s,background .18s,box-shadow .18s}
+.toggle:hover{border-color:#d3d8e0}
+.toggle:has(input:checked){background:var(--acc-soft);border-color:var(--acc-line);
+  box-shadow:inset 0 0 0 1px var(--acc-line)}
+.toggle input{position:absolute;opacity:0;width:0;height:0}
+.tk-track{width:36px;height:21px;border-radius:var(--r-pill);flex:none;position:relative;
+  background:#d4d9e2;transition:background .22s cubic-bezier(.4,0,.2,1);
+  box-shadow:inset 0 1px 2px rgba(16,24,40,.12)}
+.tk-thumb{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.3);
+  transition:transform .22s cubic-bezier(.34,1.4,.64,1)}
+.toggle input:checked + .tk-track{
+  background:linear-gradient(135deg,var(--acc),#6d90f8)}
+.toggle input:checked + .tk-track .tk-thumb{transform:translateX(15px)}
+.toggle input:focus-visible + .tk-track{outline:2px solid var(--acc);outline-offset:2px}
+.tk-label{font-size:13px;font-weight:600;color:var(--mut);white-space:nowrap;
+  transition:color .18s}
+.toggle:has(input:checked) .tk-label{color:var(--acc-dark)}
+
+/* ---------- волновой индикатор ---------- */
+.wave-wrap{display:flex;align-items:center;height:34px;width:120px;flex:none;
+  opacity:.35;transition:opacity .3s}
+.wave-wrap.live{opacity:1}
+#wave{width:120px;height:34px;display:block}
+#status{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12.5px;
+  color:var(--mut);background:var(--line-soft);border-radius:var(--r-pill);
+  padding:6px 13px;white-space:nowrap}
+#status::before{content:'';width:7px;height:7px;border-radius:50%;background:#c3c9d4;
+  flex:none}
+#status[data-state="rec"]{color:#b3261e;background:#fdeceb}
+#status[data-state="rec"]::before{background:var(--rec);
+  animation:pulse 1.2s ease-in-out infinite}
+#status[data-state="ok"]{color:var(--ok);background:var(--ok-soft)}
+#status[data-state="ok"]::before{background:var(--ok)}
+#status[data-state="err"]{color:var(--warn);background:var(--warn-soft)}
+#status[data-state="err"]::before{background:var(--warn)}
+@keyframes pulse{50%{opacity:.35}}
+
+/* ---------- layout ---------- */
+.layout{flex:1;display:flex;min-height:0}
+aside.sidebar{width:270px;background:var(--card);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow:hidden;transition:margin-left .22s;flex:none}
+aside.sidebar.closed{margin-left:-270px}
+.sidebar h3{margin:0;padding:14px 16px;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.7px;color:var(--mut);
+  border-bottom:1px solid var(--line)}
+#hist{flex:1;overflow-y:auto;padding:8px}
+.hitem{padding:10px 11px;border-radius:var(--r-md);cursor:pointer;display:flex;gap:6px;
+  align-items:flex-start;border:1px solid transparent;transition:background .12s}
+.hitem:hover{background:var(--bg)}
+.hitem.active{background:var(--acc-soft);border-color:var(--acc-line)}
+.hitem .t{flex:1;min-width:0}
+.hitem .title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.hitem .meta{font-size:11px;color:var(--mut);margin-top:3px}
+.hitem .acts{display:none;gap:2px}
+.hitem:hover .acts{display:flex}
+.iconbtn{border:0;background:none;padding:3px 5px;font-size:12px;color:var(--mut);
+  border-radius:var(--r-sm);cursor:pointer}
+.iconbtn:hover{background:#e6e9ef;color:var(--txt)}
+
+/* ---------- chat ---------- */
+main{flex:1;display:flex;flex-direction:column;min-height:0}
+.chat{flex:1;overflow-y:auto;padding:18px 22px}
+.row{margin:8px 0;padding:11px 15px;border-radius:var(--r-lg);max-width:92%;
+  font-size:14.5px;line-height:1.55;background:var(--card);border:1px solid var(--line);
+  box-shadow:var(--shadow);white-space:pre-wrap;overflow-wrap:break-word}
+.you{border-left:3px solid var(--acc)}
+.spk{display:inline-block;font-size:10.5px;font-weight:700;color:var(--acc);
+  background:var(--acc-soft);border:1px solid var(--acc-line);border-radius:var(--r-pill);
+  padding:1px 8px;margin-right:8px;vertical-align:1px}
+.user{background:var(--acc-soft);border-color:var(--acc-line);
+  border-left:3px solid var(--acc);margin-left:auto}
+.answer{background:var(--ok-soft);border-color:var(--ok-line);
+  border-left:3px solid var(--ok);margin-left:auto}
+.thinking{color:var(--mut);font-style:italic;margin-left:auto;background:none;
+  border:0;box-shadow:none}
+.time{color:#aab0bc;font-size:11px;margin-right:8px}
+.input-row{display:flex;gap:9px;padding:14px 22px;border-top:1px solid var(--line);
+  background:var(--card)}
+.input-row input{flex:1;padding:11px 15px;border-radius:var(--r-md);
+  border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:14.5px;
+  outline:none;transition:border-color .15s,box-shadow .15s}
+.input-row input:focus{border-color:var(--acc);
+  box-shadow:0 0 0 3px rgba(59,110,245,.12)}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--txt);
+  padding:9px 16px;border-radius:var(--r-md);cursor:pointer;font-size:13.5px;
+  font-weight:600;transition:background .15s,border-color .15s,color .15s}
+.btn:hover{background:var(--bg)}
+.btn.primary{border-color:var(--acc);background:var(--acc);color:#fff}
+.btn.primary:hover{background:var(--acc-dark)}
+.btn:disabled{opacity:.55;cursor:default}
+.send-btn{width:44px;padding:0;display:grid;place-items:center;font-size:16px}
+.btn.ghost{background:var(--bg)}
+.btn.on{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc-dark);
+  box-shadow:inset 0 0 0 1px var(--acc-line)}
+.btn.danger{border-color:var(--rec);background:var(--rec);color:#fff}
+.btn.danger:hover{background:#c62f2c}
+
+/* ---------- режим приложения (сегменты в шапке) ---------- */
+.appseg{display:inline-flex;background:var(--bg);border:1px solid var(--line);
+  border-radius:var(--r-pill);padding:3px;gap:2px;flex:none}
+.appseg button{border:0;background:none;border-radius:var(--r-pill);padding:6px 13px;
+  font-size:12.5px;font-weight:600;color:var(--mut);cursor:pointer;white-space:nowrap;
+  transition:background .16s,color .16s,box-shadow .16s}
+.appseg button:hover{color:var(--txt)}
+.appseg button.on{background:var(--card);color:var(--acc-dark);
+  box-shadow:0 1px 3px rgba(16,24,40,.14)}
+/* заблокированная вкладка (в разработке) */
+.appseg button.wip{opacity:.55;cursor:not-allowed;text-decoration:line-through;
+  color:#b0b7c4}
+.appseg button.wip:hover{color:#b0b7c4;background:none}
+.appseg button.wip.on{opacity:.7;cursor:not-allowed}
+
+/* ---------- вывод терминала (режим «Компьютер») ---------- */
+.cmdrow{background:#1c2027;color:#dfe4ec;border-color:#1c2027;margin-left:auto;
+  font-size:13px;line-height:1.5}
+.cmdrow .cmd{display:block;color:#8fd3a8;font-family:ui-monospace,SFMono-Regular,
+  Menlo,monospace;font-weight:600;margin-bottom:5px}
+.cmdrow .cmd::before{content:'$ ';color:#6b7688}
+.cmdrow pre{margin:0;white-space:pre-wrap;overflow-wrap:break-word;font-family:
+  ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#c3cad6;
+  max-height:280px;overflow-y:auto}
+.cmdrow .code{font-size:11px;color:#f0b26b;margin-bottom:4px}
+.cmdrow.blocked{background:#3a2226;border-color:#3a2226}
+.cmdrow.blocked .cmd{color:#ff9c9c;text-decoration:line-through}
+
+/* ---------- прогресс браузерной задачи ---------- */
+.taskrow{background:var(--warn-soft);border-color:var(--warn-line);
+  border-left:3px solid var(--warn);margin-left:auto;font-size:13px}
+.taskrow .tlabel{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--warn);margin-bottom:4px}
+.taskrow .tbody{white-space:pre-wrap;overflow-wrap:break-word}
+.task-ctl{display:flex;gap:9px;align-items:center;padding:0 22px 12px;
+  background:var(--card)}
+.task-ctl input{flex:1;padding:9px 13px;border-radius:var(--r-md);
+  border:1px solid var(--warn-line);background:var(--warn-soft);color:var(--txt);
+  font-size:13.5px;outline:none}
+.task-ctl input:focus{border-color:var(--warn)}
+.hidden{display:none !important}
+
+/* ---------- выбор сценария (шапка) ---------- */
+.mode-sel{height:36px;padding:0 30px 0 12px;border-radius:var(--r-pill);
+  border:1px solid var(--line);background:var(--bg) no-repeat right 10px center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a91a0' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--txt);
+  cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;flex:none;
+  max-width:210px;text-overflow:ellipsis;white-space:nowrap;
+  transition:border-color .15s,box-shadow .15s,background-color .15s}
+.mode-sel:hover{border-color:#d3d8e0}
+.mode-sel:focus{border-color:var(--acc);background-color:var(--acc-soft);
+  box-shadow:0 0 0 3px rgba(59,110,245,.12)}
+
+/* ---------- шаблоны промтов (пустой чат) ---------- */
+.tpl{padding:28px 24px 8px;display:flex;flex-direction:column;gap:12px;flex:none}
+.tpl h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.1px}
+.tpl .sub{margin:0;font-size:13px;color:var(--mut);line-height:1.5}
+.tpl-row{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;
+  border-radius:var(--r-pill);border:1px solid var(--line);background:var(--card);
+  cursor:pointer;font-size:13px;font-weight:500;box-shadow:var(--shadow);
+  transition:border-color .15s,background .15s,transform .1s,color .15s}
+.chip:hover{border-color:var(--acc-line);background:var(--acc-soft)}
+.chip:active{transform:scale(.97)}
+.chip .em{font-size:15px;line-height:1}
+.chip.active{border-color:var(--acc);background:var(--acc-soft);
+  color:var(--acc-dark);box-shadow:inset 0 0 0 1px var(--acc-line)}
+
+/* ---------- summary panel (right) ---------- */
+.sum-panel{position:fixed;top:0;right:0;height:100vh;width:min(430px,94vw);
+  background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow-lg);
+  transform:translateX(105%);transition:transform .26s ease;z-index:50;
+  display:flex;flex-direction:column}
+.sum-panel.open{transform:translateX(0)}
+.sum-head{display:flex;align-items:center;gap:10px;padding:0 12px 0 20px;height:58px;
+  border-bottom:1px solid var(--line);flex:none}
+.sum-head h3{margin:0;font-size:14.5px;font-weight:700;letter-spacing:-.1px;flex:1}
+.sum-badge{font-size:10.5px;font-weight:600;color:var(--warn);
+  background:var(--warn-soft);border:1px solid var(--warn-line);
+  border-radius:var(--r-pill);padding:3px 9px}
+.sum-body{flex:1;overflow-y:auto;padding:18px 20px;font-size:14px;line-height:1.6;
+  white-space:pre-wrap;overflow-wrap:break-word}
+.sum-body strong{font-weight:700}
+.sum-foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;
+  justify-content:flex-end;gap:8px;flex:none;flex-wrap:wrap}
+.hitem .mode-tag{display:inline-block;font-size:10px;font-weight:600;
+  color:var(--acc-dark);background:var(--acc-soft);border:1px solid var(--acc-line);
+  border-radius:var(--r-pill);padding:0 7px;margin-top:3px}
+
+/* ---------- session viewer (modal) ---------- */
+.overlay{position:fixed;inset:0;background:rgba(15,20,30,.4);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:60}
+.overlay.open{display:flex}
+.viewer{width:min(760px,100%);max-height:84vh;background:var(--card);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-lg);display:flex;
+  flex-direction:column;overflow:hidden}
+.viewer .vhead{display:flex;gap:8px;align-items:center;padding:12px 16px;
+  border-bottom:1px solid var(--line)}
+.viewer .vhead input{flex:1;border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:8px 11px;font-size:14px;background:var(--bg);color:var(--txt);outline:none}
+.viewer .vhead input:focus{border-color:var(--acc)}
+.viewer .vbody{flex:1;overflow-y:auto;padding:16px 20px}
+.viewer .vbody h4{margin:16px 0 8px;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.6px;color:var(--mut)}
+.viewer .vbody .phr{padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px;
+  white-space:pre-wrap;overflow-wrap:break-word}
+.viewer .vbody .phr .time{font-size:11px}
+.viewer .vbody .sum-box{white-space:pre-wrap;font-size:14px;line-height:1.6;
+  background:var(--warn-soft);border:1px solid var(--warn-line);border-radius:var(--r-md);
+  padding:14px 16px;overflow-wrap:break-word}
+.vfoot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;
+  justify-content:flex-end}
+</style>
+</head>
+<body>
+<header>
+  <button id="toggleHist" class="btn ghost" title="Показать / скрыть историю сессий">История</button>
+  <div class="brand">
+    <span class="brand-mark">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <path d="M1.5 7.5h2l1.5-5 2 10 2-7.5 1.5 2.5h2" stroke="#fff"
+          stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="brand-name">Recap</span>
+  </div>
+  <span class="divider"></span>
+  <div class="appseg" id="appseg" title="Режим приложения">
+    <button data-mode="recap">Встречи</button>
+    <button data-mode="computer">Компьютер</button>
+    <button data-mode="browser" class="wip" title="Инструмент в разработке">Браузер *</button>
+  </div>
+  <span class="divider"></span>
+  <button id="recBtn" title="Записать / Остановить"></button>
+  <div class="wave-wrap" id="waveWrap" title="Уровень звука">
+    <canvas id="wave"></canvas>
+  </div>
+  <label class="toggle" id="autoWrap" title="Ассистент сам реагирует на реплики с голоса">
+    <input type="checkbox" id="auto" checked>
+    <span class="tk-track"><span class="tk-thumb"></span></span>
+    <span class="tk-label">Авто-ответы</span>
+  </label>
+  <select id="modeSel" class="mode-sel" title="Сценарий записи — под него собираются итоги"></select>
+  <button id="sumOpenBtn" class="btn ghost" aria-expanded="false"
+    title="Показать / скрыть панель с итогами встречи">Итоги</button>
+  <span id="status" data-state="idle">не запущено</span>
+</header>
+
+<div class="layout">
+  <aside id="sidebar" class="sidebar closed">
+    <h3>История сессий</h3>
+    <div id="hist"></div>
+  </aside>
+  <main>
+    <div class="chat" id="chat"></div>
+    <div class="task-ctl hidden" id="taskCtl">
+      <button id="taskStop" class="btn danger" title="Остановить задачу браузера">Стоп</button>
+      <input id="taskInput" placeholder="Агент ждёт данные — введите и нажмите «Передать»…">
+      <button id="taskSend" class="btn primary" title="Передать значение браузерному агенту">Передать</button>
+    </div>
+    <div class="input-row">
+      <input id="q" placeholder="Спросить ассистента…">
+      <button id="ask" class="btn primary send-btn" title="Отправить">OK</button>
+    </div>
+  </main>
+</div>
+
+<!-- панель итогов встречи (справа) -->
+<aside id="sumPanel" class="sum-panel">
+  <div class="sum-head">
+    <h3 id="sumTitle">Итоги встречи</h3>
+    <span class="sum-badge">summary</span>
+    <button id="sumClose" class="iconbtn-lg" title="Закрыть">×</button>
+  </div>
+  <div class="sum-body" id="sumBody"></div>
+  <div class="sum-foot">
+    <button id="sumCopy" class="btn" title="Скопировать итоги в буфер">Копировать</button>
+    <button id="sumSend" class="btn" title="Отправить итоги в чат">В чат</button>
+    <button id="sumDownload" class="btn" title="Скачать .md-файл">Скачать</button>
+    <button id="sumRegen" class="btn primary" style="display:none">Перегенерировать</button>
+  </div>
+</aside>
+
+<div class="overlay" id="overlay">
+  <div class="viewer">
+    <div class="vhead">
+      <input id="vTitle" placeholder="Название сессии">
+      <button id="vSaveTitle" class="btn primary">OK</button>
+      <button id="vClose" class="btn">Закрыть</button>
+    </div>
+    <div class="vbody" id="vBody"></div>
+    <div class="vfoot">
+      <button id="vCopy" class="btn" title="Скопировать транскрипт в буфер">Копировать</button>
+      <button id="vDownload" class="btn" title="Скачать транскрипт .txt">Скачать</button>
+      <button id="vSummarize" class="btn">Сгенерировать итоги</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const chat = $('chat'), hist = $('hist'), status = $('status');
+const qInput = $('q');
+let ctx = null, stream = null, node = null;
+let ws = null, wsSessionId = null;
+let busy = false;
+const pending = [];
+let viewingId = null;
+let recording = false;       // пользователь хочет писать
+let connected = false;       // WS жив
+let reconnectTimer = null;
+let outbox = [];             // кадры, не отправленные из-за обрыва (Int16Array)
+const OUTBOX_MAX = 6000;     // ~10 минут аудио по 100 мс — больше не копим
+let lostFrames = 0;
+
+function setStatus(text, state){
+  status.textContent = text;
+  status.dataset.state = state || 'idle';
+}
+
+function esc(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// markdown-итоги: читаемый вид без ** и одиночных звёздочек
+function renderSummary(text){
+  return esc(text)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*/g, '');
+}
+
+function add(cls, text){
+  const d = document.createElement('div');
+  d.className = 'row ' + cls;
+  d.innerHTML = `<span class="time">${new Date().toLocaleTimeString('ru-RU')}</span>`;
+  d.append(text);
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  return d;
+}
+
+// ---------- волновой индикатор ----------
+const waveCv = $('wave'), waveWrap = $('waveWrap');
+const wctx = waveCv.getContext('2d');
+let bars = new Array(28).fill(0);   // сглаженные значения полос
+let curRms = 0;
+
+function fitWave(){
+  const dpr = window.devicePixelRatio || 1;
+  waveCv.width = 120 * dpr; waveCv.height = 34 * dpr;
+  wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+fitWave();
+window.addEventListener('resize', fitWave);
+
+function drawWave(){
+  requestAnimationFrame(drawWave);
+  const W = 120, H = 34, N = bars.length;
+  // целевое значение = RMS с плавным спадом; в простое — лёгкое «дыхание»
+  const target = connected && recording ? Math.min(1, curRms * 9) : 0;
+  for (let i = 0; i < N; i++){
+    // полосы бегут слева направо волной, центральные выше
+    const phase = performance.now() / 260 + i * 0.55;
+    const idle = (Math.sin(phase) * .5 + .5) * .06;
+    const v = Math.max(target * (0.55 + 0.45 * Math.sin(phase * .8 + i) ** 2), idle);
+    // быстрая атака, медленный спад — как у хороших VU-метров
+    bars[i] += (v - bars[i]) * (v > bars[i] ? .5 : .12);
+  }
+  wctx.clearRect(0, 0, W, H);
+  const bw = W / N, r = bw * .3;
+  const grad = wctx.createLinearGradient(0, 0, W, 0);
+  if (recording && connected){
+    grad.addColorStop(0, '#e53935');
+    grad.addColorStop(.5, '#ff7b54');
+    grad.addColorStop(1, '#e53935');
+  } else {
+    grad.addColorStop(0, '#c3c9d4');
+    grad.addColorStop(1, '#c3c9d4');
+  }
+  wctx.fillStyle = grad;
+  for (let i = 0; i < N; i++){
+    const h = Math.max(2.4, bars[i] * (H - 4));
+    const x = i * bw + bw * .2, y = (H - h) / 2, w = bw * .6;
+    wctx.beginPath();
+    wctx.roundRect(x, y, w, h, r);
+    wctx.fill();
+  }
+}
+requestAnimationFrame(drawWave);
+
+// ---------- сценарии чата ----------
+// Модель понимает, ЧТО происходит в момент работы чата, и итоги собирает
+// под этот сценарий (свой фокус на сервере в SUMMARY_MODES).
+const MODES = [
+  {id:'',          name:'Встреча',       hint:'обычная деловая встреча: темы, решения, задачи'},
+  {id:'task',      name:'Работа по задаче', hint:'разбор конкретной задачи: статус, шаги, блокеры'},
+  {id:'comms',     name:'Анализ общения', hint:'диалог/переговоры: позиции, тон, договорённости'},
+  {id:'media',     name:'Звук из видео',  hint:'разбор аудиодорожки: суть, факты, цитаты для монтажа'},
+  {id:'ideas',     name:'Мозговой штурм', hint:'генерация идей: все варианты + лучшие'},
+  {id:'study',     name:'Обучение',       hint:'лекция/разбор: конспект + вопросы для самопроверки'},
+  {id:'client',    name:'Клиент/сделка',  hint:'разговор с клиентом: потребности, возражения, шаги'},
+  {id:'journal',   name:'Личное',         hint:'рефлексия/дневник: эмоции, наблюдения, выводы'},
+];
+const modeById = id => MODES.find(m => m.id === (id || '')) || MODES[0];
+let chatMode = '';
+
+function sendMode(){
+  if (ws && ws.readyState === 1)
+    ws.send(JSON.stringify({cmd:'mode', mode: chatMode}));
+}
+
+// ---------- выбор сценария (селект в шапке) ----------
+const modeSel = $('modeSel');
+for (const m of MODES){
+  const o = document.createElement('option');
+  o.value = m.id;
+  o.textContent = m.name;
+  o.title = m.hint;
+  modeSel.appendChild(o);
+}
+modeSel.onchange = () => setChatMode(modeSel.value);
+function markTplChips(){ modeSel.value = chatMode || ''; }
+
+// ---------- режим приложения (Встречи / Компьютер / Браузер) ----------
+const PLACEHOLDERS = {
+  recap:    'Спросить ассистента…',
+  computer: 'Команда компьютеру: «запусти nmap», «найди все pdf»…',
+  browser:  'Задача браузеру: «открой сайт и авторизуйся»…',
+};
+// Режимы в разработке: вкладка видна, но не переключается.
+const WIP_MODES = ['browser'];
+let appMode = localStorage.getItem('recap_app') || 'recap';
+if (!PLACEHOLDERS[appMode] || WIP_MODES.includes(appMode)) appMode = 'recap';
+
+function setAppMode(m, notifyServer){
+  if (WIP_MODES.includes(m)){
+    add('thinking', 'Режим «Браузер» в разработке — скоро будет доступен.');
+    return;
+  }
+  appMode = PLACEHOLDERS[m] ? m : 'recap';
+  localStorage.setItem('recap_app', appMode);
+  document.querySelectorAll('#appseg button').forEach(b =>
+    b.classList.toggle('on', b.dataset.mode === appMode));
+  // recap-специфичные элементы шапки скрываем в других режимах
+  const recapOnly = ['autoWrap', 'modeSel', 'sumOpenBtn'];
+  for (const id of recapOnly) $(id).classList.toggle('hidden', appMode !== 'recap');
+  if (appMode !== 'recap') setSummaryPanel(false);
+  qInput.placeholder = PLACEHOLDERS[appMode];
+  if (appMode !== 'browser') hideTaskCtl();
+  if (notifyServer !== false && ws && ws.readyState === 1)
+    ws.send(JSON.stringify({cmd:'app_mode', app: appMode}));
+}
+document.querySelectorAll('#appseg button').forEach(b => {
+  b.onclick = () => setAppMode(b.dataset.mode);
+});
+
+// ---------- панель управления браузерной задачей ----------
+function showTaskCtl(){ $('taskCtl').classList.remove('hidden'); $('taskInput').focus(); }
+function hideTaskCtl(){ $('taskCtl').classList.add('hidden'); }
+$('taskStop').onclick = () => {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({cmd:'browser_stop'}));
+  hideTaskCtl();
+  add('thinking', 'задача браузера остановлена');
+};
+function sendTaskInput(){
+  const v = $('taskInput').value.trim();
+  if (!v || !ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({cmd:'browser_input', value: v}));
+  $('taskInput').value = '';
+  add('user', 'агенту: ' + v);
+}
+$('taskSend').onclick = sendTaskInput;
+$('taskInput').onkeydown = e => { if (e.key === 'Enter') sendTaskInput(); };
+
+// ---------- панель итогов (справа) ----------
+let summarySessionId = null;
+let summaryText = '';
+function openSummary(text, sid, mode){
+  summarySessionId = sid || null;
+  summaryText = text || '';
+  $('sumBody').innerHTML = renderSummary(summaryText);
+  $('sumRegen').style.display = summarySessionId ? '' : 'none';
+  if (mode !== undefined) chatMode = mode || '';
+  markTplChips();
+  setSummaryPanel(true);
+}
+// кнопка в шапке — переключатель панели: всегда видна, подсвечена, когда панель открыта
+function setSummaryPanel(open){
+  const body = $('sumBody');
+  if (open && !summaryText && !body.innerHTML.trim())
+    body.innerHTML = '<span style="color:var(--mut)">Итоги появятся после записи встречи — '
+      + 'или откройте нужную сессию в истории слева и нажмите «Сгенерировать итоги».</span>';
+  if (open && summaryText && !body.innerHTML.trim())
+    body.innerHTML = renderSummary(summaryText);
+  $('sumPanel').classList.toggle('open', open);
+  $('sumOpenBtn').classList.toggle('on', open);
+  $('sumOpenBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+$('sumClose').onclick = () => setSummaryPanel(false);
+$('sumOpenBtn').onclick = () => setSummaryPanel(!$('sumPanel').classList.contains('open'));
+
+async function setChatMode(id){
+  chatMode = id || '';
+  markTplChips();
+  sendMode();  // если запись идёт — сервер сразу сохранит сценарий
+  if (summarySessionId){
+    try {
+      await fetch(`/api/sessions/${summarySessionId}/mode`, {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({mode: chatMode})});
+    } catch(e){ /* не критично */ }
+  }
+}
+
+// копирование / скачивание / отправка в чат
+async function copyText(t, btn){
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  const old = btn.textContent;
+  btn.textContent = 'Скопировано';
+  setTimeout(() => btn.textContent = old, 1400);
+}
+function downloadText(name, t){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([t], {type:'text/plain;charset=utf-8'}));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$('sumCopy').onclick = e => copyText(summaryText, e.currentTarget);
+$('sumDownload').onclick = () => {
+  const m = modeById(chatMode);
+  const head = `# Итоги${summarySessionId ? ' сессии #' + summarySessionId : ''} · ${m.name}\n\n`;
+  downloadText(`recap-summary-${Date.now()}.md`, head + summaryText);
+};
+$('sumSend').onclick = () => {
+  if (!summaryText) return;
+  add('answer', 'Итоги встречи:\n' + summaryText);
+  setSummaryPanel(false);
+};
+$('sumRegen').onclick = async () => {
+  if (!summarySessionId) return;
+  $('sumRegen').disabled = true;
+  $('sumRegen').textContent = 'Генерирую…';
+  const r = await fetch(`/api/sessions/${summarySessionId}/summary`, {method:'POST'});
+  const j = await r.json();
+  $('sumRegen').disabled = false;
+  $('sumRegen').textContent = 'Перегенерировать';
+  if (j.summary) openSummary(j.summary, summarySessionId);
+};
+
+// ---------- история ----------
+async function loadHistory(){
+  const r = await fetch('/api/sessions');
+  const list = await r.json();
+  hist.innerHTML = '';
+  for (const s of list){
+    const d = document.createElement('div');
+    d.className = 'hitem' + (s.id === viewingId ? ' active' : '');
+    const dt = new Date(s.started_at * 1000).toLocaleString('ru-RU',
+      {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    d.innerHTML = `<div class="t"><div class="title"></div>
+      <div class="meta">${dt} · ${s.n_phrases} реплик${s.summary ? ' · есть итоги' : ''}</div>
+      ${s.mode ? `<span class="mode-tag">${modeById(s.mode).name}</span>` : ''}</div>
+      <div class="acts">
+        <button class="iconbtn" data-act="ren" title="Переименовать">имя</button>
+        <button class="iconbtn" data-act="del" title="Удалить">×</button>
+      </div>`;
+    d.querySelector('.title').textContent = s.title || `Сессия #${s.id}`;
+    d.onclick = e => {
+      const act = e.target.dataset && e.target.dataset.act;
+      if (act === 'del'){
+        if (confirm('Удалить сессию?')){
+          fetch(`/api/sessions/${s.id}`, {method:'DELETE'}).then(loadHistory);
+        }
+      } else if (act === 'ren'){
+        const t = prompt('Новое название:', s.title || '');
+        if (t !== null && t.trim()){
+          fetch(`/api/sessions/${s.id}`, {method:'PATCH',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({title:t})}).then(loadHistory);
+        }
+      } else openSession(s.id);
+    };
+    hist.appendChild(d);
+  }
+}
+
+async function openSession(id){
+  viewingId = id;
+  const r = await fetch(`/api/sessions/${id}`);
+  const s = await r.json();
+  if (!s.id) return;
+  $('vTitle').value = s.title || `Сессия #${id}`;
+  const b = $('vBody');
+  b.innerHTML = '<h4>Транскрипт</h4>';
+  const t0 = s.phrases.length ? s.phrases[0].ts : 0;
+  for (const p of s.phrases){
+    const mm = Math.floor((p.ts - t0)/60), ss = Math.floor((p.ts - t0)%60);
+    const el = document.createElement('div');
+    el.className = 'phr';
+    el.innerHTML = `<span class="time">${mm}:${String(ss).padStart(2,'0')}</span>`;
+    if (p.speaker){
+      const sp = document.createElement('span');
+      sp.className = 'spk';
+      sp.textContent = 'Г' + (p.speaker + 1);
+      el.appendChild(sp);
+    }
+    el.append(p.text);
+    b.appendChild(el);
+  }
+  if (s.summary){
+    b.insertAdjacentHTML('beforeend', '<h4>Итоги встречи</h4>');
+    const box = document.createElement('div');
+    box.className = 'sum-box';
+    box.innerHTML = renderSummary(s.summary);
+    b.appendChild(box);
+  }
+  $('overlay').classList.add('open');
+  loadHistory();
+}
+
+$('vClose').onclick = () => { viewingId = null; $('overlay').classList.remove('open'); loadHistory(); };
+$('overlay').onclick = e => { if (e.target === $('overlay')) $('vClose').click(); };
+$('vSaveTitle').onclick = () => {
+  if (!viewingId) return;
+  fetch(`/api/sessions/${viewingId}`, {method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title: $('vTitle').value})}).then(loadHistory);
+};
+$('vSummarize').onclick = async () => {
+  if (!viewingId) return;
+  $('vSummarize').disabled = true;
+  $('vSummarize').textContent = 'Генерирую…';
+  const r = await fetch(`/api/sessions/${viewingId}/summary`, {method:'POST'});
+  const j = await r.json();
+  $('vSummarize').disabled = false;
+  $('vSummarize').textContent = 'Сгенерировать итоги';
+  if (j.summary){
+    openSession(viewingId);
+    openSummary(j.summary, viewingId);
+  }
+};
+$('toggleHist').onclick = () => $('sidebar').classList.toggle('closed');
+
+// ---------- live ----------
+function sendAsk(text){
+  if (!ws || ws.readyState !== 1 || !text) return;
+  ws.send(JSON.stringify({cmd:'ask', q: text}));
+}
+
+function pump(){
+  if (busy || !pending.length) return;
+  if (!ws || ws.readyState !== 1){ ensureWS(); return; }  // onopen сам дёрнет pump
+  const q = pending.shift();
+  busy = true;
+  add('thinking', 'думаю…');
+  sendAsk(q);
+}
+
+// канал нужен и без записи: в режимах «Компьютер»/«Браузер» команды идут
+// текстом/голосом, а сессия-транскрипт при этом не используется
+function ensureWS(){
+  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+  connectWS(null);
+}
+
+function onTranscript(text, speaker){
+  const d = add('you', text);
+  if (speaker){
+    const b = document.createElement('span');
+    b.className = 'spk';
+    b.textContent = 'Г' + (speaker + 1);
+    d.insertBefore(b, d.firstChild.nextSibling);
+  }
+  const typing = document.activeElement === qInput && qInput.value.trim() !== '';
+  if (typing) return;   // печатаю — голосовые реплики в очередь не лезут
+  if (appMode !== 'recap'){
+    // «Компьютер» / «Браузер»: реплика с голоса — это команда как есть
+    pending.push(text);
+    pump();
+    return;
+  }
+  if ($('auto').checked){
+    pending.push(`Реплика с голоса: «${text}». Кратко отреагируй и подскажи, что учесть/сказать.`);
+    pump();
+  }
+}
+
+// ---------- отправка аудио (буфер не теряется при обрыве) ----------
+function sendFrame(i16){
+  if (ws && ws.readyState === 1){
+    // копируем buffer: ws.send забирает его асинхронно
+    ws.send(i16.slice().buffer);
+  } else {
+    outbox.push(i16);
+    if (outbox.length > OUTBOX_MAX){ outbox.shift(); lostFrames++; }
+  }
+}
+
+function flushOutbox(){
+  if (!ws || ws.readyState !== 1 || !outbox.length) return;
+  const n = outbox.length;
+  for (const f of outbox) ws.send(f.slice().buffer);
+  outbox = [];
+  if (n > 5) add('thinking', `догружено ${Math.round(n / 10)} сек аудио после переподключения`);
+  if (lostFrames){
+    add('thinking', `внимание: переполнение буфера, пропущено ~${Math.round(lostFrames / 10)} сек`);
+    lostFrames = 0;
+  }
+}
+
+// ---------- WS с авто-переподключением ----------
+function connectWS(resume){
+  ws = new WebSocket(`ws://${location.host}/ws/transcribe`);
+
+  ws.onopen = () => {
+    connected = true;
+    if (resume){
+      ws.send(JSON.stringify({cmd:'resume', session_id: resume}));
+      ws.send(JSON.stringify({cmd:'app_mode', app: appMode}));
+    } else {
+      wsSessionId = null;
+      // первое сообщение — режим: сервер не создаст сессию-транскрипт,
+      // пока в computer/browser режиме не появится аудио
+      ws.send(JSON.stringify({cmd:'app_mode', app: appMode}));
+    }
+    // сценарий: при первом сообщении сервер создаст сессию сразу с ним,
+    // при resume — обновит; после обрыва связи режим не теряется
+    if (chatMode) sendMode();
+    if (recording) setStatus('запись…', 'rec');
+    // запрос, зависший на обрыве, не должен вешать очередь навсегда
+    if (busy){ busy = false; chat.querySelectorAll('.thinking').forEach(t => t.remove()); }
+    pump();
+  };
+
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'session_started'){
+      wsSessionId = m.session_id;
+      sessionStorage.setItem('recap_session', String(m.session_id));
+    }
+    if (m.type === 'session_resumed'){
+      wsSessionId = m.session_id;
+      setStatus('запись продолжена', 'rec');
+      add('thinking', 'связь восстановлена — запись продолжается без потери аудио');
+    }
+    if (m.type === 'transcript') onTranscript(m.text, m.speaker || 0);
+    if (m.type === 'app_mode'){
+      // сервер подтвердил режим — синхронизируем UI без обратной отправки
+      if (m.app && m.app !== appMode) setAppMode(m.app, false);
+    }
+    if (m.type === 'thinking'){
+      add('thinking', m.text || 'думаю…');
+    }
+    if (m.type === 'cmd_event'){
+      const d = document.createElement('div');
+      d.className = 'row cmdrow' + (m.blocked ? ' blocked' : '');
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = new Date().toLocaleTimeString('ru-RU');
+      d.appendChild(time);
+      if (m.blocked){
+        const code = document.createElement('span');
+        code.className = 'code';
+        code.textContent = 'заблокировано: ' + m.blocked;
+        d.appendChild(code);
+      }
+      const cmd = document.createElement('code');
+      cmd.className = 'cmd';
+      cmd.textContent = m.cmd || '';
+      d.appendChild(cmd);
+      if (m.out !== undefined){
+        const pre = document.createElement('pre');
+        pre.textContent = (m.exit !== undefined ? '[exit ' + m.exit + ']\n' : '') + m.out;
+        d.appendChild(pre);
+      }
+      chat.appendChild(d);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    if (m.type === 'progress'){
+      const d = document.createElement('div');
+      d.className = 'row taskrow';
+      const lbl = document.createElement('span');
+      lbl.className = 'tlabel';
+      lbl.textContent = 'браузер';
+      d.appendChild(lbl);
+      const body = document.createElement('span');
+      body.className = 'tbody';
+      body.textContent = m.text || '';
+      d.appendChild(body);
+      chat.appendChild(d);
+      chat.scrollTop = chat.scrollHeight;
+      // агент застрял и ждёт данных от пользователя
+      if ((m.text || '').includes('[WAIT]')) showTaskCtl();
+    }
+    if (m.type === 'answer'){
+      busy = false;
+      chat.querySelectorAll('.thinking').forEach(t => t.remove());
+      add('answer', m.text);
+      if (appMode === 'browser') hideTaskCtl();
+      pump();
+    }
+    if (m.type === 'summary'){
+      openSummary(m.text, m.session_id || null, m.mode);
+      loadHistory();
+    }
+    if (m.type === 'session_closed'){
+      setStatus('сессия сохранена', 'ok');
+      $('recBtn').classList.remove('stopped');
+      sessionStorage.removeItem('recap_session');
+    }
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    if (!recording) return;
+    // запись активна, а связи нет: переподключаемся с той же сессией.
+    // Микрофон НЕ останавливаем: кадры идут в outbox и дошлются.
+    setStatus('переподключение…', 'err');
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      if (recording) connectWS(wsSessionId);
+    }, 1500);
+  };
+  ws.onerror = () => { /* onclose сделает всё нужное */ };
+}
+
+async function startRecording(){
+  recording = true;
+  outbox = [];
+  lostFrames = 0;
+  $('recBtn').classList.add('recording');
+  $('recBtn').classList.remove('stopped');
+  waveWrap.classList.add('live');
+  setStatus('запуск…', 'rec');
+
+  connectWS(null);
+
+  ctx = new AudioContext({sampleRate: 16000});
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: {channelCount: 1, echoCancellation: false, noiseSuppression: false,
+            autoGainControl: false}
+  });
+  const src = ctx.createMediaStreamSource(stream);
+  await ctx.audioWorklet.addModule('/static/worklet.js');
+  node = new AudioWorkletNode(ctx, 'capturer');
+  node.port.onmessage = e => {
+    curRms = e.data.r;
+    sendFrame(new Int16Array(e.data.b));
+  };
+  src.connect(node);
+  // WS мог ещё не открыться — открывшись, сольёт outbox
+  const waitOpen = setInterval(() => {
+    if (ws && ws.readyState === 1){ flushOutbox(); }
+    if (!recording) clearInterval(waitOpen);
+  }, 300);
+  // периодическая догрузка после reconnect
+  setInterval(() => { if (recording) flushOutbox(); }, 1000);
+}
+
+function stopRecording(){
+  recording = false;
+  clearTimeout(reconnectTimer);
+  waveWrap.classList.remove('live');
+  if (node) node.port.onmessage = null;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (ctx) ctx.close();
+  if (ws && ws.readyState === 1){
+    flushOutbox();
+    ws.send(JSON.stringify({cmd:'stop'}));
+    setTimeout(() => { if (ws) ws.close(); }, 15000); // ждём итоги (длинная очередь)
+  }
+  $('recBtn').classList.remove('recording');
+  $('recBtn').classList.add('stopped');
+  setStatus('генерирую итоги…', 'rec');
+  loadHistory();
+}
+
+function askNow(){
+  const q = qInput.value.trim();
+  if (!q) return;
+  add('user', q);
+  qInput.value = '';
+  pending.push(q);
+  pump();
+}
+
+$('recBtn').onclick = () => {
+  if (recording) stopRecording();
+  else startRecording();
+};
+$('ask').onclick = askNow;
+qInput.onkeydown = e => { if (e.key === 'Enter') askNow(); };
+
+// защита от случайного закрытия валидированного разговора:
+// при активной записи браузер спросит подтверждение
+window.addEventListener('beforeunload', e => {
+  if (recording){ e.preventDefault(); e.returnValue = ''; }
+});
+// если страница всё же закрылась во время записи — подсказка при следующем открытии
+window.addEventListener('load', () => {
+  const orphan = sessionStorage.getItem('recap_session');
+  if (orphan){
+    add('thinking', `прошлая запись (сессия #${orphan}) была прервана — транскрипт сохранён, смотрите историю слева`);
+  }
+});
+loadHistory();
+// выбор сценария — только в шапке (modeSel); в чате ничего не дублируем
+markTplChips();
+// восстановить режим приложения из localStorage: подсветка сегментов,
+// скрытие recap-элементов, placeholder — сервер узнает режим при WS-connect
+setAppMode(appMode, false);
+</script>
+</body>
+</html>

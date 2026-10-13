@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Данные пользователя (не в репо)
+sessions.db
+recordings/
+memory_db/
+models/
+*.wav
+*.log
+
+# Браузерные артефакты
+ai_browser_profile/
+ai_browser_profile_managed/
+ai_browser_sandbox/
+ai_browser_sessions/
+ai_browser_chats/
+.playwright/
+
+# macOS
+.DS_Store
+
+# Секреты
+.env
+*.key
